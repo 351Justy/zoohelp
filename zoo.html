@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>どうぶつしょうぎ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'Noto Serif JP', serif;
+            background: linear-gradient(135deg, #f4f1e8 0%, #e8dcc6 100%);
+            min-height: 100vh;
+            color: #4a3c2a;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(139, 69, 19, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(160, 82, 45, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        #game-wrapper {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            position: relative;
+        }
+
+        /* 音響コントロール */
+        #audio-control {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #8b6914;
+            border-radius: 50px;
+            padding: 8px 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+            color: #8b6914;
+            user-select: none;
+        }
+
+        #audio-control:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.05);
+        }
+
+        #audio-control.muted {
+            background: rgba(200, 200, 200, 0.9);
+            color: #666;
+        }
+
+        /* スタート画面 */
+        #start-screen {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 3px solid #d4af37;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        #start-screen h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #8b6914, #d4af37);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #start-screen p {
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            color: #6b5b47;
+        }
+
+        .start-button {
+            display: block;
+            width: 100%;
+            padding: 15px 20px;
+            margin: 15px 0;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #8b6914 0%, #b8860b 100%);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(139, 105, 20, 0.3);
+        }
+
+        .start-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 105, 20, 0.4);
+        }
+
+        .start-button:active {
+            transform: translateY(0);
+        }
+
+        /* ゲーム画面 */
+        #game-area {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* 手番・メッセージ表示エリア */
+        #game-status {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            border: 2px solid #d4af37;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #turn-indicator {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2f4f2f;
+            margin-bottom: 8px;
+        }
+
+        #message {
+            color: #8b0000;
+            font-size: 0.95em;
+            min-height: 20px;
+            font-weight: bold;
+        }
+
+        /* 盤面エリア */
+        #board-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            border: 3px solid #d4af37;
+            margin-bottom: 20px;
+        }
+
+        #captured-cpu, #captured-player {
+            min-height: 60px;
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto;
+            border: 2px solid #cd853f;
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            align-items: center;
+            background: linear-gradient(135deg, #f5deb3 0%, #ddbf94 100%);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #captured-cpu { 
+            margin-bottom: 15px; 
+        }
+        
+        #captured-player { 
+            margin-top: 15px; 
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            grid-template-rows: repeat(4, 80px);
+            border: 4px solid #8b4513;
+            border-radius: 8px;
+            width: 240px;
+            height: 320px;
+            background: linear-gradient(45deg, #daa520 0%, #b8860b 100%);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            margin: 0 auto;
+        }
+
+        .square {
+            width: 80px;
+            height: 80px;
+            border: 1px solid #8b6914;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .square:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .square.highlight { 
+            background: linear-gradient(135deg, #90EE90 0%, #98FB98 100%);
+            box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .square.selected { 
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .square.in-check::after {
+            content: '🚨';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 16px;
+            animation: pulse 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .piece {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            user-select: none;
+            transition: transform 0.2s ease;
+        }
+
+        .piece:hover {
+            transform: scale(1.05);
+        }
+
+        .piece img {
+            max-width: 85%;
+            max-height: 85%;
+            object-fit: contain;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+        }
+        
+        .piece.player1-style img {
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3)) hue-rotate(0deg);
+        }
+
+        .piece.player2-style { 
+            transform: rotate(180deg); 
+        }
+
+        .piece.player2-style img {
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3)) hue-rotate(10deg);
+        }
+
+        .captured-piece {
+            cursor: pointer;
+            margin: 3px;
+            padding: 2px;
+            border: 2px solid #8b6914;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            user-select: none;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .captured-piece:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .captured-piece img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.3));
+        }
+        
+        .captured-piece.player2-style { 
+            transform: rotate(180deg); 
+        }
+
+        .captured-piece.selected { 
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+        }
+
+        /* 選び直しボタン */
+        #reset-button {
+            display: block;
+            width: 100%;
+            max-width: 200px;
+            margin: 0 auto;
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #dc143c 0%, #b22222 100%);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #reset-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(220, 20, 60, 0.4);
+        }
+
+        /* レスポンシブデザイン */
+        @media (max-width: 480px) {
+            #game-wrapper {
+                padding: 10px;
+            }
+
+            #board {
+                grid-template-columns: repeat(3, 60px);
+                grid-template-rows: repeat(4, 60px);
+                width: 180px;
+                height: 240px;
+            }
+
+            .square {
+                width: 60px;
+                height: 60px;
+            }
+
+            #captured-cpu, #captured-player {
+                min-height: 50px;
+            }
+
+            .captured-piece {
+                width: 42px;
+                height: 42px;
+            }
+
+            #board-section {
+                padding: 15px;
+            }
+
+            #audio-control {
+                top: 10px;
+                right: 10px;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
+            #start-screen {
+                margin: 20px;
+                padding: 30px 20px;
+            }
+
+            #start-screen h1 {
+                font-size: 1.8em;
+            }
+        }
+
+        @media (max-width: 360px) {
+            #board {
+                grid-template-columns: repeat(3, 55px);
+                grid-template-rows: repeat(4, 55px);
+                width: 165px;
+                height: 220px;
+            }
+
+            .square {
+                width: 55px;
+                height: 55px;
+            }
+
+            .captured-piece {
+                width: 38px;
+                height: 38px;
+            }
+
+            #start-screen h1 {
+                font-size: 1.6em;
+            }
+        }
+
+        /* アニメーション */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #game-area {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        #start-screen {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* タッチデバイス対応 */
+        @media (hover: none) and (pointer: coarse) {
+            .square:hover, .piece:hover, .captured-piece:hover, #reset-button:hover, .start-button:hover {
+                transform: none;
+            }
+
+            .square:active {
+                background: rgba(255, 255, 255, 0.5);
+            }
+
+            .captured-piece:active, .piece:active {
+                transform: scale(0.95);
+            }
+
+            #reset-button:active, .start-button:active {
+                transform: scale(0.98);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="audio-control" onclick="toggleAudio()">
+    🔊 音響ON
+</div>
+
+<div id="game-wrapper">
+    <div id="start-screen">
+        <h1>どうぶつしょうぎ</h1>
+        <p>どちらで始めますか？</p>
+        <button class="start-button" id="start-first-button">🦁 先手で始める</button>
+        <button class="start-button" id="start-second-button">🐘 後手で始める</button>
+    </div>
+
+    <div id="game-area">
+        <div id="game-status">
+            <div id="turn-indicator">あなたの番です</div>
+            <div id="message"></div>
+        </div>
+        
+        <div id="board-section">
+            <div id="captured-cpu"></div>
+            <div id="board"></div>
+            <div id="captured-player"></div>
+        </div>
+        
+        <button id="reset-button">🔄 選び直す</button>
+    </div>
+<footer style="padding:20px; margin-top:40px; text-align:center; color:white;">
+  <nav style="margin-bottom:15px;">
+    <a href="https://justy.co.jp/games/privacy.html" style="color:#667eea; opacity:0.8; margin:0 9px; text-decoration:none;">プライバシーポリシー</a>
+    <a href="https://justy.co.jp/games/terms.html" style="color:#667eea; opacity:0.8;margin:0 9px; text-decoration:none;">利用規約</a>
+    <a href="https://justy.co.jp/games/contact.html" style="color:#667eea; opacity:0.8; margin:0 9px; text-decoration:none;">お問い合わせ</a>
+    <a href="https://justy.co.jp/games/about.html" style="color:#667eea; opacity:0.8; margin:0 9px; text-decoration:none;">サイトについて</a>
+  </nav>
+  <p style="font-size:0.9rem; opacity:0.8; color:#667eea">© 2025 Justy Web Games. Hiroyuki Itoh All Right Reserved.</p>
+</footer>
+</div>
+
+<!-- 音響用の隠しaudio要素 -->
+<audio id="bgm-kaishimae" loop preload="auto">
+    <source src="kaishimae.mp3" type="audio/mpeg">
+</audio>
+<audio id="bgm-shiaichuu" loop preload="auto">
+    <source src="shiaichuu.mp3" type="audio/mpeg">
+</audio>
+<audio id="se-shiaikaishi" preload="auto">
+    <source src="shiaikaishi.wav" type="audio/wav">
+</audio>
+<audio id="se-sashi" preload="auto">
+    <source src="sashi.wav" type="audio/wav">
+</audio>
+<audio id="se-win" preload="auto">
+    <source src="win.wav" type="audio/wav">
+</audio>
+<audio id="se-lose" preload="auto">
+    <source src="lose.wav" type="audio/wav">
+</audio>
+
+<script>
+    const boardElement = document.getElementById('board');
+    const playerCapturedElement = document.getElementById('captured-player');
+    const cpuCapturedElement = document.getElementById('captured-cpu');
+    const turnIndicator = document.getElementById('turn-indicator');
+    const messageElement = document.getElementById('message');
+    const resetButton = document.getElementById('reset-button');
+    const startScreen = document.getElementById('start-screen');
+    const gameArea = document.getElementById('game-area');
+    const startFirstButton = document.getElementById('start-first-button');
+    const startSecondButton = document.getElementById('start-second-button');
+    const audioControlButton = document.getElementById('audio-control');
+
+    // 音響関連
+    const bgmKaishimae = document.getElementById('bgm-kaishimae');
+    const bgmShiaichuu = document.getElementById('bgm-shiaichuu');
+    const seShiaikaishi = document.getElementById('se-shiaikaishi');
+    const seSashi = document.getElementById('se-sashi');
+    const seWin = document.getElementById('se-win');
+    const seLose = document.getElementById('se-lose');
+    
+    let audioEnabled = true;
+    let currentBgm = null;
+
+    // BGM音量を40%に設定
+    bgmKaishimae.volume = 0.4;
+    bgmShiaichuu.volume = 0.4;
+    // SEの音量はデフォルト（100%）のまま
+
+    // 音響制御関数
+    function toggleAudio() {
+        audioEnabled = !audioEnabled;
+        const button = document.getElementById('audio-control');
+        
+        if (audioEnabled) {
+            button.textContent = '🔊 音響ON';
+            button.classList.remove('muted');
+            // 現在の状態に応じてBGMを再開
+            if (gameOver || currentPlayer === null) {
+                playBgm('kaishimae');
+            } else {
+                playBgm('shiaichuu');
+            }
+        } else {
+            button.textContent = '🔇 音響OFF';
+            button.classList.add('muted');
+            stopAllAudio();
+        }
+    }
+
+    function playBgm(type) {
+        if (!audioEnabled) return;
+        
+        stopAllBgm();
+        
+        try {
+            currentBgm = type;
+            if (type === 'kaishimae') {
+                bgmKaishimae.currentTime = 0;
+                bgmKaishimae.play().catch(() => {});
+            } else if (type === 'shiaichuu') {
+                bgmShiaichuu.currentTime = 0;
+                bgmShiaichuu.play().catch(() => {});
+            }
+        } catch (e) {
+            // ファイルが見つからない場合は無視
+        }
+    }
+
+    function playSe(type) {
+        if (!audioEnabled) return;
+        
+        try {
+            let audio;
+            switch (type) {
+                case 'shiaikaishi':
+                    audio = seShiaikaishi;
+                    break;
+                case 'sashi':
+                    audio = seSashi;
+                    break;
+                case 'win':
+                    audio = seWin;
+                    break;
+                case 'lose':
+                    audio = seLose;
+                    break;
+                default:
+                    return;
+            }
+            
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        } catch (e) {
+            // ファイルが見つからない場合は無視
+        }
+    }
+
+    function stopAllBgm() {
+        try {
+            bgmKaishimae.pause();
+            bgmShiaichuu.pause();
+        } catch (e) {}
+    }
+
+    function stopAllAudio() {
+        try {
+            bgmKaishimae.pause();
+            bgmShiaichuu.pause();
+            seShiaikaishi.pause();
+            seSashi.pause();
+            seWin.pause();
+            seLose.pause();
+        } catch (e) {}
+    }
+
+    // ゲーム関連の定数とデータ構造
+    const PIECES = {
+        LION:    { name: 'L', text: 'ライオン', imgSrc: 'lion.png', moves: [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]], value: 10000 },
+        GIRAFFE: { name: 'G', text: 'キリン', imgSrc: 'kirin.png', moves: [[-1, 0], [1, 0], [0, -1], [0, 1]], value: 50 },
+        ELEPHANT:{ name: 'E', text: 'ゾウ', imgSrc: 'zou.png', moves: [[-1, -1], [-1, 1], [1, -1], [1, 1]], value: 50 },
+        CHICK:   { name: 'C', text: 'ヒヨコ', imgSrc: 'hiyoko.png', moves: [[-1, 0]], value: 15 },
+        HEN:     { name: 'H', text: 'ニワトリ', imgSrc: 'niwatori.png', moves: [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0]], value: 85 }
+    };
+
+    const PLAYER1 = 1;
+    const PLAYER2 = 2;
+
+    // AI関連のデータ構造
+    const transpositionTable = new Map();
+    const MAX_TT_SIZE = 15000;
+    const killerMoves = [];
+    const MAX_KILLER_MOVES = 4;
+    let nodesSearched = 0;
+    let ttHits = 0;
+
+    // ゲーム状態
+    let board = [];
+    let capturedByP1 = [];
+    let capturedByP2 = [];
+    let currentPlayer = PLAYER1;
+    let selectedPiece = null;
+    let gameOver = false;
+    let humanId = PLAYER1;
+    let cpuId = PLAYER2;
+    const MINIMAX_DEPTH = 5;
+
+    // 初期化時に開始前BGMを再生
+    window.addEventListener('load', () => {
+        playBgm('kaishimae');
+    });
+
+    function startGame(playerIsFirst) {
+        humanId = playerIsFirst ? PLAYER1 : PLAYER2;
+        cpuId = playerIsFirst ? PLAYER2 : PLAYER1;
+        
+        // 音響効果
+        stopAllBgm();
+        playSe('shiaikaishi');
+        
+        setTimeout(() => {
+            playBgm('shiaichuu');
+        }, 500);
+        
+        startScreen.style.display = 'none';
+        gameArea.style.display = 'block';
+        initGame();
+    }
+
+    function initGame() {
+        board = [
+            [{ piece: PIECES.GIRAFFE, player: PLAYER2 }, { piece: PIECES.LION, player: PLAYER2 }, { piece: PIECES.ELEPHANT, player: PLAYER2 }],
+            [null, { piece: PIECES.CHICK, player: PLAYER2 }, null],
+            [null, { piece: PIECES.CHICK, player: PLAYER1 }, null],
+            [{ piece: PIECES.ELEPHANT, player: PLAYER1 }, { piece: PIECES.LION, player: PLAYER1 }, { piece: PIECES.GIRAFFE, player: PLAYER1 }]
+        ];
+        capturedByP1 = [];
+        capturedByP2 = [];
+        currentPlayer = PLAYER1;
+        selectedPiece = null;
+        gameOver = false;
+        messageElement.textContent = '';
+        
+        // AI用データ構造の初期化
+        transpositionTable.clear();
+        killerMoves.length = 0;
+        nodesSearched = 0;
+        ttHits = 0;
+        
+        renderAll();
+        updateTurnIndicator();
+        
+        if (currentPlayer === cpuId) {
+             setTimeout(cpuMove, 500); 
+        }
+    }
+
+    function resetGame() {
+        gameOver = true;
+        stopAllBgm();
+        setTimeout(() => {
+            playBgm('kaishimae');
+        }, 1000);
+        
+        gameArea.style.display = 'none';
+        startScreen.style.display = 'flex';
+    }
+
+    // 置換表用のハッシュ関数
+    function getBoardHash(currentBoard, currentCapP1, currentCapP2, player) {
+        let hash = '';
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 3; c++) {
+                const piece = currentBoard[r][c];
+                if (piece) {
+                    hash += piece.piece.name + piece.player;
+                } else {
+                    hash += '0';
+                }
+            }
+        }
+        hash += 'P1:' + currentCapP1.map(p => p.name).sort().join('');
+        hash += 'P2:' + currentCapP2.map(p => p.name).sort().join('');
+        hash += 'T:' + player;
+        return hash;
+    }
+
+    // キラームーブの管理
+    function addKillerMove(move, depth) {
+        if (!killerMoves[depth]) killerMoves[depth] = [];
+        const moveStr = JSON.stringify(move);
+        const index = killerMoves[depth].indexOf(moveStr);
+        if (index === -1) {
+            killerMoves[depth].unshift(moveStr);
+            if (killerMoves[depth].length > MAX_KILLER_MOVES) {
+                killerMoves[depth].pop();
+            }
+        } else {
+            killerMoves[depth].splice(index, 1);
+            killerMoves[depth].unshift(moveStr);
+        }
+    }
+
+    // 手の順序付け
+    function orderMoves(moves, currentBoard, depth) {
+        return moves.map(move => ({
+            move,
+            priority: getMoveOrderPriority(move, currentBoard, depth)
+        }))
+        .sort((a, b) => b.priority - a.priority)
+        .map(item => item.move);
+    }
+
+    function getMoveOrderPriority(move, currentBoard, depth) {
+        let priority = 0;
+        
+        const targetPiece = currentBoard[move.target.row][move.target.col];
+        if (targetPiece) {
+            priority += targetPiece.piece.value;
+            if (targetPiece.piece.name === 'L') priority += 50000;
+        }
+        
+        if (killerMoves[depth]) {
+            const moveStr = JSON.stringify(move);
+            const killerIndex = killerMoves[depth].indexOf(moveStr);
+            if (killerIndex !== -1) {
+                priority += 1000 - killerIndex * 100;
+            }
+        }
+        
+        const { row: toRow, col: toCol } = move.target;
+        
+        if (toCol === 1) priority += 15;
+        if (toRow === 1 || toRow === 2) priority += 10;
+        
+        if (move.selection.piece.name === 'C') {
+            if ((move.selection.player === PLAYER1 && toRow === 0) ||
+                (move.selection.player === PLAYER2 && toRow === 3)) {
+                priority += 300;
+            }
+        }
+        
+        if (move.selection.piece.name === 'L') {
+            if (move.selection.player === PLAYER1 && toRow < move.selection.row) {
+                priority += 50;
+            } else if (move.selection.player === PLAYER2 && toRow > move.selection.row) {
+                priority += 50;
+            }
+        }
+        
+        return priority;
+    }
+
+    // 強化された評価関数
+    function evaluateBoard(boardState, capP1, capP2, playerToEvaluate) {
+        let score = 0;
+        const opponent = playerToEvaluate === PLAYER1 ? PLAYER2 : PLAYER1;
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 3; c++) {
+                const pieceData = boardState[r][c];
+                if (pieceData) {
+                    const value = pieceData.piece.value;
+                    let positionalBonus = 0;
+                    
+                    if (pieceData.piece.name === PIECES.LION.name) {
+                        if (pieceData.player === PLAYER1) {
+                            positionalBonus += (3 - r) * 15;
+                        } else {
+                            positionalBonus += r * 15;
+                        }
+                        
+                        const tryZone = pieceData.player === PLAYER1 ? 0 : 3;
+                        if (r === tryZone) {
+                            const opponentOfPiece = pieceData.player === PLAYER1 ? PLAYER2 : PLAYER1;
+                            if (!isSquareAttacked(r, c, opponentOfPiece, boardState)) {
+                                positionalBonus += 800;
+                            } else {
+                                positionalBonus -= 200;
+                            }
+                        }
+                        
+                        if (c === 1) positionalBonus += 25;
+                        
+                        const opponentOfPiece = pieceData.player === PLAYER1 ? PLAYER2 : PLAYER1;
+                        if (isSquareAttacked(r, c, opponentOfPiece, boardState)) {
+                            positionalBonus -= 300;
+                        }
+                    }
+                    
+                    else if (pieceData.piece.name === PIECES.HEN.name) {
+                        if (c === 1) positionalBonus += 25;
+                        if (r === 1 || r === 2) positionalBonus += 20;
+                        
+                        const moves = getValidMovesOnBoard(boardState, pieceData.piece, r, c, pieceData.player);
+                        const opponentLionPos = findPieceOnBoard(boardState, 'L', opponent);
+                        if (opponentLionPos && moves.some(m => m.row === opponentLionPos.row && m.col === opponentLionPos.col)) {
+                            positionalBonus += 100;
+                        }
+                    }
+                    
+                    else if (pieceData.piece.name === PIECES.CHICK.name) {
+                        if (pieceData.player === PLAYER1) {
+                            positionalBonus += (3 - r) * 12;
+                            if (r === 1) positionalBonus += 45;
+                            if (r === 0) positionalBonus += 200;
+                        } else {
+                            positionalBonus += r * 12;
+                            if (r === 2) positionalBonus += 45;
+                            if (r === 3) positionalBonus += 200;
+                        }
+                        
+                        if (c === 1) positionalBonus += 15;
+                    }
+                    
+                    else if (pieceData.piece.name === PIECES.GIRAFFE.name || 
+                             pieceData.piece.name === PIECES.ELEPHANT.name) {
+                        if (c === 1) positionalBonus += 18;
+                        if (r === 1 || r === 2) positionalBonus += 12;
+                        
+                        const moves = getValidMovesOnBoard(boardState, pieceData.piece, r, c, pieceData.player);
+                        const opponentLionPos = findPieceOnBoard(boardState, 'L', opponent);
+                        if (opponentLionPos && moves.some(m => m.row === opponentLionPos.row && m.col === opponentLionPos.col)) {
+                            positionalBonus += 80;
+                        }
+                        
+                        if (pieceData.player === PLAYER1) {
+                            positionalBonus += (3 - r) * 8;
+                        } else {
+                            positionalBonus += r * 8;
+                        }
+                    }
+
+                    if (pieceData.player === playerToEvaluate) {
+                        score += value + positionalBonus;
+                    } else {
+                        score -= (value + positionalBonus);
+                    }
+                }
+            }
+        }
+
+        const capturedByEvaluator = (playerToEvaluate === PLAYER1) ? capP1 : capP2;
+        const capturedByOpponent = (playerToEvaluate === PLAYER1) ? capP2 : capP1;
+        
+        capturedByEvaluator.forEach(p => {
+            let handValue = p.value * 1.5;
+            if (p.name === PIECES.CHICK.name) handValue *= 1.4;
+            if (p.name === PIECES.GIRAFFE.name || p.name === PIECES.ELEPHANT.name) handValue *= 1.2;
+            score += handValue;
+        });
+        
+        capturedByOpponent.forEach(p => {
+            let handValue = p.value * 1.5;
+            if (p.name === PIECES.CHICK.name) handValue *= 1.4;
+            if (p.name === PIECES.GIRAFFE.name || p.name === PIECES.ELEPHANT.name) handValue *= 1.2;
+            score -= handValue;
+        });
+
+        const centerControl = evaluateCenterControl(boardState, playerToEvaluate);
+        score += centerControl * 10;
+
+        return score;
+    }
+
+    function evaluateCenterControl(boardState, player) {
+        let control = 0;
+        const centerSquares = [[1, 1], [2, 1]];
+        
+        centerSquares.forEach(([r, c]) => {
+            if (boardState[r][c] && boardState[r][c].player === player) {
+                control += 2;
+            }
+            if (isSquareAttacked(r, c, player, boardState)) {
+                control += 1;
+            }
+        });
+        
+        return control;
+    }
+
+    // 改良されたminimax関数
+    function minimax(currentBoard, currentCapP1, currentCapP2, depth, maximizingPlayerId, minimizingPlayerId, isMaximizingTurn, alpha, beta, originalDepth) {
+        nodesSearched++;
+        
+        const boardHash = getBoardHash(currentBoard, currentCapP1, currentCapP2, isMaximizingTurn ? maximizingPlayerId : minimizingPlayerId);
+        const ttEntry = transpositionTable.get(boardHash);
+        if (ttEntry && ttEntry.depth >= depth) {
+            ttHits++;
+            if (ttEntry.type === 'exact') {
+                return ttEntry.value;
+            } else if (ttEntry.type === 'alpha' && ttEntry.value <= alpha) {
+                return alpha;
+            } else if (ttEntry.type === 'beta' && ttEntry.value >= beta) {
+                return beta;
+            }
+        }
+
+        const maxLionPos = findPieceOnBoard(currentBoard, 'L', maximizingPlayerId);
+        const minLionPos = findPieceOnBoard(currentBoard, 'L', minimizingPlayerId);
+
+        if (!maxLionPos) return -PIECES.LION.value * 15;
+        if (!minLionPos) return PIECES.LION.value * 15;
+
+        const maxTryZone = maximizingPlayerId === PLAYER1 ? 0 : 3;
+        if (maxLionPos.row === maxTryZone && !isSquareAttacked(maxLionPos.row, maxLionPos.col, minimizingPlayerId, currentBoard)) {
+            return PIECES.LION.value * 8;
+        }
+        const minTryZone = minimizingPlayerId === PLAYER1 ? 0 : 3;
+        if (minLionPos.row === minTryZone && !isSquareAttacked(minLionPos.row, minLionPos.col, maximizingPlayerId, currentBoard)) {
+            return -PIECES.LION.value * 8;
+        }
+
+        if (depth === 0) {
+            const evalValue = evaluateBoard(currentBoard, currentCapP1, currentCapP2, maximizingPlayerId);
+            
+            if (transpositionTable.size < MAX_TT_SIZE) {
+                transpositionTable.set(boardHash, {
+                    depth: 0,
+                    value: evalValue,
+                    type: 'exact'
+                });
+            }
+            
+            return evalValue;
+        }
+
+        const currentPlayerForMinimax = isMaximizingTurn ? maximizingPlayerId : minimizingPlayerId;
+        let moves = getAllValidMoves(currentPlayerForMinimax, currentBoard, currentCapP1, currentCapP2, false);
+
+        if (moves.length === 0) {
+            const kingToCheckPos = findPieceOnBoard(currentBoard, 'L', currentPlayerForMinimax);
+            const attacker = (currentPlayerForMinimax === maximizingPlayerId) ? minimizingPlayerId : maximizingPlayerId;
+            if (kingToCheckPos && isSquareAttacked(kingToCheckPos.row, kingToCheckPos.col, attacker, currentBoard)) {
+                return isMaximizingTurn ? -PIECES.LION.value * 12 : PIECES.LION.value * 12;
+            }
+            return isMaximizingTurn ? -PIECES.LION.value * 10 : PIECES.LION.value * 10;
+        }
+
+        moves = orderMoves(moves, currentBoard, originalDepth - depth);
+
+        let bestValue;
+        let ttType = 'alpha';
+
+        if (isMaximizingTurn) {
+            bestValue = -Infinity;
+            for (const move of moves) {
+                const [tempBoard, tempCapP1_next, tempCapP2_next] = executeVirtualMove(currentBoard, currentCapP1, currentCapP2, move.selection, move.target, currentPlayerForMinimax);
+                const evaluation = minimax(tempBoard, tempCapP1_next, tempCapP2_next, depth - 1, maximizingPlayerId, minimizingPlayerId, false, alpha, beta, originalDepth);
+                
+                if (evaluation > bestValue) {
+                    bestValue = evaluation;
+                }
+                
+                alpha = Math.max(alpha, evaluation);
+                if (beta <= alpha) {
+                    addKillerMove(move, originalDepth - depth);
+                    ttType = 'beta';
+                    break;
+                }
+            }
+            if (bestValue > alpha) ttType = 'exact';
+        } else {
+            bestValue = Infinity;
+            for (const move of moves) {
+                const [tempBoard, tempCapP1_next, tempCapP2_next] = executeVirtualMove(currentBoard, currentCapP1, currentCapP2, move.selection, move.target, currentPlayerForMinimax);
+                const evaluation = minimax(tempBoard, tempCapP1_next, tempCapP2_next, depth - 1, maximizingPlayerId, minimizingPlayerId, true, alpha, beta, originalDepth);
+                
+                if (evaluation < bestValue) {
+                    bestValue = evaluation;
+                }
+                
+                beta = Math.min(beta, evaluation);
+                if (beta <= alpha) {
+                    addKillerMove(move, originalDepth - depth);
+                    ttType = 'alpha';
+                    break;
+                }
+            }
+            if (bestValue < beta) ttType = 'exact';
+        }
+
+        if (transpositionTable.size < MAX_TT_SIZE) {
+            transpositionTable.set(boardHash, {
+                depth: depth,
+                value: bestValue,
+                type: ttType
+            });
+        }
+
+        return bestValue;
+    }
+
+    // CPU思考の強化
+    function cpuMove() {
+        if (gameOver) return;
+
+        const startTime = performance.now();
+
+        const availableMoves = getAllValidMoves(cpuId, board, capturedByP1, capturedByP2, false);
+        const opponentId = humanId;
+
+        if (availableMoves.length === 0) {
+            win(opponentId, "CPUは安全な手がありません！");
+            return;
+        }
+
+        let bestMove = null;
+        let bestScore = -Infinity;
+        
+        let immediateWinMove = null;
+        let immediateWinScore = -Infinity;
+
+        for (const move of availableMoves) {
+            const { selection, target } = move;
+            const pieceOnTargetSquare = board[target.row][target.col];
+            
+            if (pieceOnTargetSquare && pieceOnTargetSquare.piece.name === 'L' && pieceOnTargetSquare.player === opponentId) {
+                if (PIECES.LION.value * 15 > immediateWinScore) {
+                    immediateWinScore = PIECES.LION.value * 15;
+                    immediateWinMove = move;
+                }
+            }
+            
+            if (immediateWinScore < PIECES.LION.value * 15) {
+                const [tempBoardForTry, , ] = executeVirtualMove(board, capturedByP1, capturedByP2, selection, target, cpuId);
+                const cpuLionPosAfterMove = findPieceOnBoard(tempBoardForTry, 'L', cpuId);
+                if (cpuLionPosAfterMove) {
+                    const cpuTryZone = cpuId === PLAYER1 ? 0 : 3;
+                    if (cpuLionPosAfterMove.row === cpuTryZone && !isSquareAttacked(cpuLionPosAfterMove.row, cpuLionPosAfterMove.col, opponentId, tempBoardForTry)) {
+                        if (PIECES.LION.value * 8 > immediateWinScore) {
+                            immediateWinScore = PIECES.LION.value * 8;
+                            immediateWinMove = move;
+                        }
+                    }
+                }
+            }
+            
+            if (immediateWinScore === PIECES.LION.value * 15) break;
+        }
+
+        if (immediateWinMove) {
+            executeMove(immediateWinMove);
+            if (!gameOver) changeTurn();
+            return;
+        }
+
+        const orderedMoves = orderMoves(availableMoves, board, 0);
+
+        for (const move of orderedMoves) {
+            const [tempBoard, tempCapP1_sim, tempCapP2_sim] = executeVirtualMove(board, capturedByP1, capturedByP2, move.selection, move.target, cpuId);
+            const currentScore = minimax(tempBoard, tempCapP1_sim, tempCapP2_sim, MINIMAX_DEPTH, cpuId, opponentId, false, -Infinity, Infinity, MINIMAX_DEPTH);
+
+            if (currentScore > bestScore) {
+                bestScore = currentScore;
+                bestMove = move;
+            } else if (currentScore === bestScore && Math.random() < 0.25) {
+                bestMove = move;
+            }
+        }
+
+        if (!bestMove && availableMoves.length > 0) {
+            bestMove = availableMoves[Math.floor(Math.random() * availableMoves.length)];
+        }
+        
+        if (bestMove) {
+            executeMove(bestMove);
+            if (!gameOver) changeTurn();
+        } else {
+            win(opponentId, "CPUが有効な手を選択できませんでした。");
+        }
+
+        if (transpositionTable.size > MAX_TT_SIZE * 1.2) {
+            const keysToDelete = Array.from(transpositionTable.keys()).slice(0, MAX_TT_SIZE * 0.2);
+            keysToDelete.forEach(key => transpositionTable.delete(key));
+        }
+    }
+
+    // レンダリング関数群
+    function renderAll() {
+        renderBoard();
+        renderCaptured();
+        highlightMoves();
+    }
+
+    function renderBoard() {
+        boardElement.innerHTML = '';
+        const boardIsFlippedForView = (humanId === PLAYER2);
+
+        const p1ActualLionPos = findPieceOnBoard(board, 'L', PLAYER1);
+        const p2ActualLionPos = findPieceOnBoard(board, 'L', PLAYER2);
+        const p1ActualInCheck = p1ActualLionPos && isSquareAttacked(p1ActualLionPos.row, p1ActualLionPos.col, PLAYER2, board);
+        const p2ActualInCheck = p2ActualLionPos && isSquareAttacked(p2ActualLionPos.row, p2ActualLionPos.col, PLAYER1, board);
+
+        for (let r_view = 0; r_view < 4; r_view++) {
+            for (let c_view = 0; c_view < 3; c_view++) {
+                const r_actual = boardIsFlippedForView ? (3 - r_view) : r_view;
+                const c_actual = boardIsFlippedForView ? (2 - c_view) : c_view;
+
+                const square = document.createElement('div');
+                square.classList.add('square');
+                square.dataset.row = r_actual;
+                square.dataset.col = c_actual;
+
+                const pieceData = board[r_actual][c_actual];
+                if (pieceData) {
+                    const pieceElement = document.createElement('div');
+                    pieceElement.classList.add('piece');
+
+                    if (pieceData.player === humanId) {
+                        pieceElement.classList.add('player1-style');
+                    } else {
+                        pieceElement.classList.add('player2-style');
+                    }
+                    
+                    const imgElement = document.createElement('img');
+                    imgElement.src = pieceData.piece.imgSrc;
+                    imgElement.alt = pieceData.piece.text;
+                    pieceElement.appendChild(imgElement);
+                    square.appendChild(pieceElement);
+
+                    if (pieceData.piece.name === 'L') {
+                        if (pieceData.player === PLAYER1 && p1ActualInCheck) {
+                            square.classList.add('in-check');
+                        }
+                        if (pieceData.player === PLAYER2 && p2ActualInCheck) {
+                            square.classList.add('in-check');
+                        }
+                    }
+                }
+                square.addEventListener('click', () => handleSquareClick(r_actual, c_actual));
+                boardElement.appendChild(square);
+            }
+        }
+    }
+
+    function renderCaptured() {
+        const humanCapturedPieces = (humanId === PLAYER1) ? capturedByP1 : capturedByP2;
+        const cpuCapturedPieces = (humanId === PLAYER1) ? capturedByP2 : capturedByP1;
+        playerCapturedElement.innerHTML = '';
+        cpuCapturedElement.innerHTML = '';
+        humanCapturedPieces.forEach((piece, index) => {
+             playerCapturedElement.appendChild(createCapturedPieceElement(piece, humanId, index));
+        });
+        cpuCapturedPieces.forEach((piece, index) => {
+             cpuCapturedElement.appendChild(createCapturedPieceElement(piece, cpuId, index));
+        });
+    }
+
+    function createCapturedPieceElement(piece, ownerOfCapturedPiece, index) {
+        const pieceElement = document.createElement('div');
+        pieceElement.classList.add('captured-piece');
+        if (ownerOfCapturedPiece === humanId) {
+            pieceElement.classList.add('player1-style');
+        } else {
+            pieceElement.classList.add('player2-style');
+        }
+        
+        const imgElement = document.createElement('img');
+        imgElement.src = piece.imgSrc;
+        imgElement.alt = piece.text;
+        pieceElement.appendChild(imgElement);
+
+        pieceElement.dataset.pieceName = piece.name;
+        pieceElement.dataset.owner = ownerOfCapturedPiece;
+        pieceElement.dataset.index = index;
+        pieceElement.addEventListener('click', () => handleCapturedClick(piece, ownerOfCapturedPiece, index));
+        return pieceElement;
+    }
+
+    function updateTurnIndicator() {
+        if (gameOver) {
+            turnIndicator.textContent = "🏁 ゲーム終了";
+            return;
+        }
+        const playerText = humanId === PLAYER1 ? '先手' : '後手';
+        const turnText = currentPlayer === humanId ? '🎯 あなたの番です' : '🤖 コンピューターの番です';
+        turnIndicator.textContent = `${turnText} (あなたは${playerText})`;
+    }
+
+    function highlightMoves() {
+        document.querySelectorAll('.square.highlight, .square.selected, .captured-piece.selected').forEach(el => {
+            el.classList.remove('highlight', 'selected');
+        });
+        if (!selectedPiece) return;
+        if (selectedPiece.type === 'board') {
+            document.querySelector(`.square[data-row='${selectedPiece.row}'][data-col='${selectedPiece.col}']`)?.classList.add('selected');
+        } else { 
+            const capDiv = (selectedPiece.owner === humanId) ? playerCapturedElement : cpuCapturedElement;
+            capDiv.querySelector(`.captured-piece[data-owner='${selectedPiece.owner}'][data-index='${selectedPiece.index}']`)?.classList.add('selected');
+        }
+        const moves = getValidMovesForSelection();
+        moves.forEach(move => {
+            document.querySelector(`.square[data-row='${move.row}'][data-col='${move.col}']`)?.classList.add('highlight');
+        });
+    }
+
+    function handleSquareClick(r_actual, c_actual) {
+        if (gameOver || currentPlayer !== humanId) return;
+        const pieceData = board[r_actual][c_actual];
+        if (selectedPiece) {
+            const validMoves = getValidMovesForSelection();
+            const isMoveValid = validMoves.some(move => move.row === r_actual && move.col === c_actual);
+            if (isMoveValid) {
+                const moveData = { selection: selectedPiece, target: { row: r_actual, col: c_actual } };
+                if (!isMoveSafe(moveData.selection, moveData.target, board, humanId, capturedByP1, capturedByP2 )) {
+                    messageElement.textContent = "🚫 王様が取られてしまう手は指せません。";
+                    selectedPiece = null;
+                    renderAll();
+                    return;
+                }
+                executeMove(moveData);
+                if (!gameOver) changeTurn();
+            } else if (pieceData && pieceData.player === humanId) {
+                selectedPiece = { type: 'board', piece: pieceData.piece, player: humanId, row: r_actual, col: c_actual };
+            } else {
+                selectedPiece = null;
+            }
+        } else if (pieceData && pieceData.player === humanId) {
+            selectedPiece = { type: 'board', piece: pieceData.piece, player: humanId, row: r_actual, col: c_actual };
+        }
+        renderAll();
+    }
+
+    function handleCapturedClick(piece, ownerOfPieceInStack, index) {
+        if (gameOver || currentPlayer !== humanId || ownerOfPieceInStack !== humanId) return;
+        selectedPiece = { type: 'captured', piece: piece, owner: humanId, index: index };
+        renderAll();
+    }
+
+    // ゲームロジック関数群（既存のまま）
+    function isValidSquare(row, col) {
+        return row >= 0 && row < 4 && col >= 0 && col < 3;
+    }
+
+    function findPieceOnBoard(currentBoard, pieceName, player) {
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 3; c++) {
+                if (currentBoard[r][c] && currentBoard[r][c].piece.name === pieceName && currentBoard[r][c].player === player) {
+                    return { row: r, col: c };
+                }
+            }
+        }
+        return null;
+    }
+
+    function getValidMovesOnBoard(currentBoard, piece, row, col, player) {
+        const moves = [];
+        const pieceMoves = piece.moves;
+        pieceMoves.forEach(move => {
+            const dr = (player === PLAYER1) ? move[0] : -move[0]; 
+            const dc = move[1]; 
+            const newRow = row + dr;
+            const newCol = col + dc;
+            if (isValidSquare(newRow, newCol)) {
+                const targetSquareContent = currentBoard[newRow][newCol];
+                if (!targetSquareContent || targetSquareContent.player !== player) {
+                    moves.push({ row: newRow, col: newCol });
+                }
+            }
+        });
+        return moves;
+    }
+
+    function getValidDrops(pieceToDrop, playerDropping, currentBoard) {
+        const drops = [];
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 3; c++) {
+                if (!currentBoard[r][c]) {
+                    drops.push({ row: r, col: c });
+                }
+            }
+        }
+        return drops;
+    }
+
+    function getValidMovesForSelection() {
+        if (!selectedPiece) return [];
+        if (selectedPiece.type === 'board') {
+            return getValidMovesOnBoard(board, selectedPiece.piece, selectedPiece.row, selectedPiece.col, selectedPiece.player);
+        } else { 
+            return getValidDrops(selectedPiece.piece, selectedPiece.owner, board);
+        }
+    }
+
+    function isSquareAttacked(row, col, attackerPlayer, currentBoard) {
+        for (let r_atk = 0; r_atk < 4; r_atk++) {
+            for (let c_atk = 0; c_atk < 3; c_atk++) {
+                const pieceData = currentBoard[r_atk][c_atk];
+                if (pieceData && pieceData.player === attackerPlayer) {
+                    const moves = getValidMovesOnBoard(currentBoard, pieceData.piece, r_atk, c_atk, attackerPlayer);
+                    if (moves.some(move => move.row === row && move.col === col)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    function executeVirtualMove(currentBoard, currentP1Captured, currentP2Captured, selection, targetMove, playerMakingMove) {
+        const tempBoard = JSON.parse(JSON.stringify(currentBoard));
+        let tempCapturedP1 = [...currentP1Captured];
+        let tempCapturedP2 = [...currentP2Captured];
+
+        const { piece, row: fromRow, col: fromCol, index: capturedIndex, type: selectionType } = selection;
+        const { row: toRow, col: toCol } = targetMove;
+
+        const pieceOnTargetSquare = tempBoard[toRow][toCol];
+        if (pieceOnTargetSquare) {
+            let pieceObjectThatWasCaptured = pieceOnTargetSquare.piece;
+            if (pieceObjectThatWasCaptured.name === PIECES.HEN.name) {
+                pieceObjectThatWasCaptured = PIECES.CHICK;
+            }
+            if (playerMakingMove === PLAYER1) {
+                tempCapturedP1.push(pieceObjectThatWasCaptured);
+            } else {
+                tempCapturedP2.push(pieceObjectThatWasCaptured);
+            }
+        }
+
+        tempBoard[toRow][toCol] = { piece: piece, player: playerMakingMove };
+
+        if (selectionType === 'board') {
+            tempBoard[fromRow][fromCol] = null;
+        } else { 
+            if (playerMakingMove === PLAYER1) {
+                tempCapturedP1.splice(capturedIndex, 1);
+            } else {
+                tempCapturedP2.splice(capturedIndex, 1);
+            }
+        }
+        
+        if (selectionType === 'board' && piece.name === PIECES.CHICK.name) {
+            const promotionZone = playerMakingMove === PLAYER1 ? 0 : 3;
+            if (toRow === promotionZone) {
+                 tempBoard[toRow][toCol].piece = PIECES.HEN;
+            }
+        }
+        return [tempBoard, tempCapturedP1, tempCapturedP2];
+    }
+
+    function isMoveSafe(selection, targetMove, currentBoard, player, p1Cap, p2Cap) {
+        const opponent = player === PLAYER1 ? PLAYER2 : PLAYER1;
+        const [tempBoard, , ] = executeVirtualMove(currentBoard, p1Cap, p2Cap, selection, targetMove, player);
+        const lionPos = findPieceOnBoard(tempBoard, 'L', player);
+        if (!lionPos) {
+            return false; 
+        }
+        return !isSquareAttacked(lionPos.row, lionPos.col, opponent, tempBoard);
+    }
+
+    function executeMove(moveData) {
+        const { selection, target } = moveData;
+        const { piece, index: capturedIndex, type: selectionType, row: fromRow, col: fromCol } = selection;
+        const { row: toRow, col: toCol } = target;
+
+        messageElement.textContent = '';
+        selectedPiece = null;
+
+        const pieceDataOnTarget = board[toRow][toCol];
+        if (pieceDataOnTarget) {
+            let pieceObjectToAdd = pieceDataOnTarget.piece;
+            if (pieceObjectToAdd.name === PIECES.HEN.name) {
+                pieceObjectToAdd = PIECES.CHICK;
+            }
+            if (currentPlayer === PLAYER1) {
+                capturedByP1.push(pieceObjectToAdd);
+            } else {
+                capturedByP2.push(pieceObjectToAdd);
+            }
+        }
+
+        board[toRow][toCol] = { piece: piece, player: currentPlayer };
+
+        if (selectionType === 'board') {
+            board[fromRow][fromCol] = null;
+        } else { 
+            if (currentPlayer === PLAYER1) {
+                capturedByP1.splice(capturedIndex, 1);
+            } else {
+                capturedByP2.splice(capturedIndex, 1);
+            }
+        }
+
+        if (selectionType === 'board' && piece.name === PIECES.CHICK.name) {
+            const promotionZone = currentPlayer === PLAYER1 ? 0 : 3;
+            if (toRow === promotionZone) {
+                board[toRow][toCol].piece = PIECES.HEN;
+            }
+        }
+
+        // 駒を指した時のSE再生
+        playSe('sashi');
+
+        renderAll();
+        checkWin(currentPlayer, pieceDataOnTarget);
+    }
+
+    function checkWin(playerWhoMoved, capturedTargetData) {
+        if(gameOver) return;
+        const opponent = playerWhoMoved === PLAYER1 ? PLAYER2 : PLAYER1;
+
+        if (capturedTargetData && capturedTargetData.piece.name === 'L') {
+            win(playerWhoMoved, "ライオンをキャッチ！"); return;
+        }
+
+        const lionPos = findPieceOnBoard(board, 'L', playerWhoMoved);
+        if (lionPos) {
+            const tryZone = playerWhoMoved === PLAYER1 ? 0 : 3;
+            if (lionPos.row === tryZone && !isSquareAttacked(lionPos.row, lionPos.col, opponent, board)) {
+                win(playerWhoMoved, "トライ成功！"); return;
+            }
+        }
+        
+        const opponentMoves = getAllValidMoves(opponent, board, capturedByP1, capturedByP2, false);
+        if (opponentMoves.length === 0) {
+            win(playerWhoMoved, "相手は動けません！"); return;
+        }
+    }
+
+    function win(player, reason) {
+        gameOver = true;
+        const winnerText = (player === humanId) ? '🎉 あなたの勝ちです！' : '😤 コンピューターの勝ちです！';
+        
+        // 手番表示エリアに勝敗情報を統合
+        turnIndicator.textContent = "🏁 ゲーム終了";
+        messageElement.innerHTML = `<div>${winnerText}</div><div style="margin-top:5px;">(${reason})</div>`;
+        
+        // 勝敗音響効果
+        stopAllBgm();
+        if (player === humanId) {
+            playSe('win');
+        } else {
+            playSe('lose');
+        }
+        
+        // 1秒後に開始前BGMを再生
+        setTimeout(() => {
+            playBgm('kaishimae');
+        }, 1000);
+    }
+
+    function changeTurn() {
+        currentPlayer = (currentPlayer === PLAYER1) ? PLAYER2 : PLAYER1;
+        updateTurnIndicator();
+        if (currentPlayer === cpuId && !gameOver) {
+            setTimeout(cpuMove, 400);
+        }
+    }
+
+    function getAllValidMoves(player, currentBoard, p1Cap, p2Cap, ignoreSafety = false) {
+        const allMoves = [];
+        const playerCapturedList = (player === PLAYER1) ? p1Cap : p2Cap;
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 3; c++) {
+                const pieceData = currentBoard[r][c];
+                if (pieceData && pieceData.player === player) {
+                    const movesOnBoard = getValidMovesOnBoard(currentBoard, pieceData.piece, r, c, player);
+                    movesOnBoard.forEach(move => {
+                        allMoves.push({ selection: { type: 'board', piece: pieceData.piece, player: player, row: r, col: c }, target: move });
+                    });
+                }
+            }
+        }
+
+        playerCapturedList.forEach((piece, index) => {
+            if (!piece) { console.error("Undefined piece in captured list for player", player, playerCapturedList); return; }
+            const drops = getValidDrops(piece, player, currentBoard);
+            drops.forEach(drop => {
+                allMoves.push({ selection: { type: 'captured', piece: piece, owner: player, index: index }, target: drop });
+            });
+        });
+        
+        if (ignoreSafety) return allMoves;
+        return allMoves.filter(move => isMoveSafe(move.selection, move.target, currentBoard, player, p1Cap, p2Cap));
+    }
+
+    // イベントリスナーの設定
+    startFirstButton.addEventListener('click', () => startGame(true));
+    startSecondButton.addEventListener('click', () => startGame(false));
+    resetButton.addEventListener('click', resetGame);
+</script>
+
+</body>
+</html>
