@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>どうぶつしょうぎ評価値ビュワー</title>
+  <style>
+    :root {
+      --bg: #111d2b;
+      --panel: #1a2c40;
+      --cell: #2a4561;
+      --line: #0a1521;
+      --text: #edf4ff;
+      --accent: #ffce73;
+      --best1: #ff4f4f;
+      --best2: #ff8a3d;
+      --best3: #f7ca3b;
+      --best4: #82e35a;
+      --best5: #48e6a4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Noto Sans JP", sans-serif;
+      background: radial-gradient(circle at top, #243f59, var(--bg));
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+    h1 { color: var(--accent); margin: 0 0 12px; font-size: 1.7rem; }
+    .controls, .panel {
+      width: min(940px, 100%);
+      background: color-mix(in srgb, var(--panel), #ffffff 6%);
+      border: 1px solid #3a5b7d;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+    .control-group { display: flex; align-items: center; gap: 6px; }
+    select, button {
+      background: #112031;
+      color: var(--text);
+      border: 1px solid #4e708f;
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+    button { cursor: pointer; }
+    .primary { background: var(--accent); color: #1f2833; font-weight: 700; border: none; }
+    .main {
+      width: min(940px, 100%);
+      display: grid;
+      grid-template-columns: minmax(260px, 350px) minmax(280px, 1fr);
+      gap: 12px;
+    }
+    .board-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .hand {
+      width: 100%;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      background: #182739;
+      border: 1px solid #476485;
+      border-radius: 8px;
+      padding: 6px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      width: min(90vw, 330px);
+      aspect-ratio: 3 / 4;
+      border: 3px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1f354d;
+    }
+    .cell {
+      border: 1px solid #385572;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: .15s;
+    }
+    .cell:hover { background: rgba(255,255,255,.08); }
+    .cell.legal { box-shadow: inset 0 0 0 3px rgba(255,206,115,.45); }
+    .cell.best-1 { box-shadow: inset 0 0 0 3px var(--best1); }
+    .cell.best-2 { box-shadow: inset 0 0 0 3px var(--best2); }
+    .cell.best-3 { box-shadow: inset 0 0 0 3px var(--best3); }
+    .cell.best-4 { box-shadow: inset 0 0 0 3px var(--best4); }
+    .cell.best-5 { box-shadow: inset 0 0 0 3px var(--best5); }
+    .piece {
+      width: 88%; height: 88%; border-radius: 12px;
+      background: rgba(255,255,255,.85);
+      border: 2px solid #26384c;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .piece img { width: 86%; height: 86%; object-fit: contain; }
+    .p2 { transform: rotate(180deg); }
+    .selected { outline: 3px solid #ffd54c; outline-offset: -3px; }
+    .eval {
+      position: absolute; inset: auto 2px 2px auto;
+      font-size: .66rem; font-weight: 700;
+      background: rgba(0,0,0,.55);
+      padding: 1px 4px; border-radius: 5px;
+    }
+    .chip {
+      width: 45px; height: 45px; border-radius: 10px;
+      border: 2px solid #37516d; background: #f6efe0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .chip img { width: 78%; height: 78%; object-fit: contain; }
+    .chip.selected { border-color: #ffd54c; }
+    .info { display: grid; gap: 8px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .top-list { margin: 0; padding-left: 18px; font-size: .93rem; }
+    .top-list li { margin-bottom: 4px; }
+    .legend { display: flex; gap: 8px; flex-wrap: wrap; font-size: .82rem; }
+    .legend span::before { content: ""; width: 10px; height: 10px; display: inline-block; margin-right: 4px; border-radius: 2px; }
+    .l1::before { background: var(--best1); }
+    .l2::before { background: var(--best2); }
+    .l3::before { background: var(--best3); }
+    .l4::before { background: var(--best4); }
+    .l5::before { background: var(--best5); }
+    @media (max-width: 760px) { .main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>どうぶつしょうぎ評価値ビュワー</h1>
+
+  <div class="controls">
+    <div class="control-group"><label for="first">先手</label><select id="first"><option value="1">プレイヤー1（下側）</option><option value="2">プレイヤー2（上側）</option></select></div>
+    <div class="control-group"><label for="depth">読み深さ</label><select id="depth"><option value="5">Hard</option><option value="7" selected>Very Hard</option><option value="9">Extreme</option></select></div>
+    <button id="new" class="primary">新ゲーム</button>
+    <button id="undo">アンドゥ</button>
+  </div>
+
+  <div class="main">
+    <div class="panel board-wrap">
+      <div id="hand2" class="hand"></div>
+      <div id="board" class="board"></div>
+      <div id="hand1" class="hand"></div>
+    </div>
+
+    <div class="panel info">
+      <div class="row"><strong id="turn">手番:</strong><span id="state"></span></div>
+      <div class="row"><span id="nodes">探索ノード: -</span><span id="tthit">TTヒット: -</span></div>
+      <div><strong>ベスト5候補</strong><ol id="top" class="top-list"></ol></div>
+      <div class="legend"><span class="l1">1位</span><span class="l2">2位</span><span class="l3">3位</span><span class="l4">4位</span><span class="l5">5位</span></div>
+    </div>
+  </div>
+
+  <script>
+    const P1 = 1, P2 = 2;
+    const PIECES = {
+      L: { jp: 'ライオン', img: 'lion (2).png', v: 100000, mv: [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]] },
+      G: { jp: 'キリン', img: 'kirin (2).png', v: 360, mv: [[-1,0],[1,0],[0,-1],[0,1]] },
+      E: { jp: 'ゾウ', img: 'zou (2).png', v: 340, mv: [[-1,-1],[-1,1],[1,-1],[1,1]] },
+      C: { jp: 'ヒヨコ', img: 'hiyoko (2).png', v: 130, mv: [[-1,0]] },
+      H: { jp: 'ニワトリ', img: 'niwatori (2).png', v: 280, mv: [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,0]] }
+    };
+
+    const boardEl = document.getElementById('board');
+    const hand1El = document.getElementById('hand1');
+    const hand2El = document.getElementById('hand2');
+    const turnEl = document.getElementById('turn');
+    const stateEl = document.getElementById('state');
+    const topEl = document.getElementById('top');
+    const nodesEl = document.getElementById('nodes');
+    const tthitEl = document.getElementById('tthit');
+    const depthEl = document.getElementById('depth');
+    const firstEl = document.getElementById('first');
+
+    let state, selected = null, history = [], gameOver = false;
+    let tt = new Map(), nodes = 0, ttHits = 0;
+
+    const PST = {
+      C: [[0,5,0],[5,12,5],[1,6,1],[-8,-4,-8]],
+      H: [[6,8,6],[4,8,4],[2,5,2],[-2,1,-2]],
+      G: [[2,6,2],[4,7,4],[4,7,4],[2,6,2]],
+      E: [[3,7,3],[4,7,4],[4,7,4],[3,7,3]],
+      L: [[2,3,2],[1,2,1],[-1,0,-1],[-4,-3,-4]]
+    };
+
+    function newGame() {
+      state = {
+        board: [
+          [{t:'G',p:P2},{t:'L',p:P2},{t:'E',p:P2}],
+          [null,{t:'C',p:P2},null],
+          [null,{t:'C',p:P1},null],
+          [{t:'E',p:P1},{t:'L',p:P1},{t:'G',p:P1}]
+        ],
+        h1: [], h2: [],
+        turn: Number(firstEl.value)
+      };
+      selected = null;
+      history = [cloneState(state)];
+      gameOver = false;
+      render();
+    }
+
+    function cloneState(s) { return JSON.parse(JSON.stringify(s)); }
+    function enemy(p){ return p===P1?P2:P1; }
+    function inBoard(r,c){ return r>=0&&r<4&&c>=0&&c<3; }
+    function handOf(s,p){ return p===P1 ? s.h1 : s.h2; }
+
+    function orientedMoves(type, player) {
+      return PIECES[type].mv.map(([dr,dc]) => [player===P1?dr:-dr, dc]);
+    }
+
+    function findLion(s, player) {
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const x=s.board[r][c]; if (x&&x.p===player&&x.t==='L') return {r,c};
+      }
+      return null;
+    }
+
+    function squareAttacked(s, row, col, attacker) {
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const x=s.board[r][c];
+        if (!x || x.p!==attacker) continue;
+        for (const [dr,dc] of orientedMoves(x.t, attacker)) {
+          if (r+dr===row && c+dc===col) return true;
+        }
+      }
+      return false;
+    }
+
+    function pseudoMoves(s, player) {
+      const moves=[];
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const x=s.board[r][c];
+        if (!x || x.p!==player) continue;
+        for (const [dr,dc] of orientedMoves(x.t, player)) {
+          const nr=r+dr,nc=c+dc;
+          if (!inBoard(nr,nc)) continue;
+          const target=s.board[nr][nc];
+          if (!target || target.p!==player) moves.push({from:{r,c}, to:{r:nr,c:nc}});
+        }
+      }
+      const hand = handOf(s, player);
+      hand.forEach((type,idx)=>{
+        for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+          if (s.board[r][c]) continue;
+          if (type==='C' && ((player===P1&&r===0)||(player===P2&&r===3))) continue;
+          moves.push({drop:{idx,type,player}, to:{r,c}});
+        }
+      });
+      return moves;
+    }
+
+    function doMove(s, move) {
+      const ns = cloneState(s);
+      const p = s.turn;
+      let captured = null;
+      if (move.drop) {
+        ns.board[move.to.r][move.to.c] = {t:move.drop.type,p};
+        handOf(ns,p).splice(move.drop.idx,1);
+      } else {
+        const piece = ns.board[move.from.r][move.from.c];
+        const target = ns.board[move.to.r][move.to.c];
+        if (target) {
+          captured = target.t === 'H' ? 'C' : target.t;
+          handOf(ns,p).push(captured);
+        }
+        ns.board[move.from.r][move.from.c] = null;
+        let newType = piece.t;
+        if (piece.t==='C' && ((p===P1&&move.to.r===0)||(p===P2&&move.to.r===3))) newType = 'H';
+        ns.board[move.to.r][move.to.c] = {t:newType,p};
+      }
+      ns.turn = enemy(p);
+      return { ns, captured };
+    }
+
+    function isTryWin(s, player) {
+      const lion = findLion(s, player);
+      if (!lion) return false;
+      const zone = player===P1 ? 0 : 3;
+      return lion.r===zone && !squareAttacked(s, lion.r, lion.c, enemy(player));
+    }
+
+    function legalMoves(s, player=s.turn) {
+      const all = pseudoMoves(s, player);
+      const ok=[];
+      for (const m of all) {
+        const temp = cloneState(s); temp.turn = player;
+        const {ns} = doMove(temp,m);
+        const myLion = findLion(ns, player);
+        if (!myLion) continue;
+        if (squareAttacked(ns,myLion.r,myLion.c,enemy(player))) continue;
+        ok.push(m);
+      }
+      return ok;
+    }
+
+    function terminalScore(s, player, ply) {
+      const myLion = findLion(s, player), opLion = findLion(s, enemy(player));
+      if (!opLion) return 200000 - ply;
+      if (!myLion) return -200000 + ply;
+      if (isTryWin(s, player)) return 150000 - ply;
+      if (isTryWin(s, enemy(player))) return -150000 + ply;
+      return null;
+    }
+
+    function evalState(s, player) {
+      let score = 0;
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const x=s.board[r][c];
+        if (!x) continue;
+        const sign = x.p===player ? 1 : -1;
+        const rr = x.p===P1 ? r : 3-r;
+        score += sign * (PIECES[x.t].v + PST[x.t][rr][c] * 5);
+      }
+      handOf(s,player).forEach(t=> score += PIECES[t].v * 0.95);
+      handOf(s,enemy(player)).forEach(t=> score -= PIECES[t].v * 0.95);
+
+      const myMob = legalMoves(s,player).length;
+      const opMob = legalMoves(s,enemy(player)).length;
+      score += (myMob - opMob) * 10;
+
+      const meLion = findLion(s,player), opLion = findLion(s,enemy(player));
+      if (meLion && squareAttacked(s, meLion.r, meLion.c, enemy(player))) score -= 140;
+      if (opLion && squareAttacked(s, opLion.r, opLion.c, player)) score += 110;
+      return score;
+    }
+
+    function hashState(s, player) {
+      let h = '';
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const x=s.board[r][c]; h += x ? `${x.t}${x.p}` : '.';
+      }
+      h += '|' + [...s.h1].sort().join('') + '|' + [...s.h2].sort().join('') + '|' + player;
+      return h;
+    }
+
+    function negamax(s, depth, alpha, beta, player, ply=0) {
+      nodes++;
+      const ts = terminalScore(s, player, ply);
+      if (ts !== null) return ts;
+      if (depth===0) return evalState(s, player);
+
+      const key = hashState(s,player) + ':' + depth;
+      if (tt.has(key)) { ttHits++; return tt.get(key); }
+
+      const moves = legalMoves(s, player);
+      if (!moves.length) return -120000 + ply;
+
+      moves.sort((a,b)=> movePriority(s,b,player)-movePriority(s,a,player));
+
+      let best = -Infinity;
+      for (const mv of moves) {
+        const temp = cloneState(s); temp.turn = player;
+        const {ns} = doMove(temp,mv);
+        const val = -negamax(ns, depth-1, -beta, -alpha, enemy(player), ply+1);
+        if (val > best) best = val;
+        if (val > alpha) alpha = val;
+        if (alpha >= beta) break;
+      }
+      if (tt.size < 200000) tt.set(key, best);
+      return best;
+    }
+
+    function movePriority(s, m, player) {
+      if (m.drop) return 5 + (m.to.c===1?2:0);
+      const t = s.board[m.to.r][m.to.c];
+      let p = t ? PIECES[t.t].v : 0;
+      const piece = s.board[m.from.r][m.from.c];
+      if (piece.t==='C' && ((player===P1&&m.to.r===0)||(player===P2&&m.to.r===3))) p += 120;
+      if (m.to.c===1) p += 15;
+      return p;
+    }
+
+    function formatMove(m) {
+      const to = `(${m.to.r+1},${m.to.c+1})`;
+      if (m.drop) return `打:${PIECES[m.drop.type].jp}→${to}`;
+      const f = `(${m.from.r+1},${m.from.c+1})`;
+      return `${f}→${to}`;
+    }
+
+    function currentEvaluations() {
+      nodes = 0; ttHits = 0; tt = new Map();
+      const d = Number(depthEl.value);
+      const moves = legalMoves(state, state.turn);
+      const scored = moves.map(m => {
+        const temp = cloneState(state); temp.turn = state.turn;
+        const {ns} = doMove(temp,m);
+        const v = -negamax(ns, d-1, -Infinity, Infinity, enemy(state.turn), 1);
+        return { m, v };
+      }).sort((a,b)=>b.v-a.v);
+      return scored;
+    }
+
+    function render() {
+      const moves = gameOver ? [] : legalMoves(state,state.turn);
+      const evals = gameOver ? [] : currentEvaluations();
+      nodesEl.textContent = `探索ノード: ${nodes.toLocaleString()}`;
+      tthitEl.textContent = `TTヒット: ${ttHits.toLocaleString()}`;
+
+      const top5 = evals.slice(0,5);
+      topEl.innerHTML = top5.map((x,i)=>`<li>${i+1}位: ${formatMove(x.m)} = ${Math.round(x.v)}</li>`).join('') || '<li>候補なし</li>';
+
+      boardEl.innerHTML = '';
+      for (let r=0;r<4;r++) for (let c=0;c<3;c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const legalTo = moves.some(m=>m.to.r===r&&m.to.c===c && matchesSelection(m));
+        if (selected && legalTo) cell.classList.add('legal');
+
+        const bestIdx = top5.findIndex(x=>x.m.to.r===r&&x.m.to.c===c);
+        if (bestIdx>=0) cell.classList.add(`best-${bestIdx+1}`);
+
+        const piece = state.board[r][c];
+        if (piece) {
+          const p = document.createElement('div');
+          p.className = 'piece ' + (piece.p===P2?'p2':'');
+          if (selected && selected.kind==='board' && selected.r===r && selected.c===c) p.classList.add('selected');
+          p.innerHTML = `<img src="${PIECES[piece.t].img}" alt="${PIECES[piece.t].jp}">`;
+          cell.appendChild(p);
+        } else {
+          const bestForCell = evals.find(x=>x.m.to.r===r&&x.m.to.c===c);
+          if (bestForCell) {
+            const e = document.createElement('div');
+            e.className = 'eval';
+            e.textContent = Math.round(bestForCell.v);
+            cell.appendChild(e);
+          }
+        }
+
+        cell.onclick = () => clickBoard(r,c,moves);
+        boardEl.appendChild(cell);
+      }
+
+      renderHand(P1, hand1El, moves);
+      renderHand(P2, hand2El, moves);
+
+      if (gameOver) {
+        turnEl.textContent = '対局終了';
+      } else {
+        turnEl.textContent = `手番: プレイヤー${state.turn}`;
+      }
+    }
+
+    function renderHand(player, el, moves) {
+      el.innerHTML = '';
+      handOf(state,player).forEach((t,idx)=>{
+        const chip = document.createElement('div');
+        chip.className = 'chip ' + (player===P2?'p2':'');
+        if (selected && selected.kind==='hand' && selected.player===player && selected.idx===idx) chip.classList.add('selected');
+        chip.innerHTML = `<img src="${PIECES[t].img}" alt="${PIECES[t].jp}">`;
+        chip.onclick = () => {
+          if (gameOver || state.turn!==player) return;
+          selected = {kind:'hand',player,idx,type:t};
+          render();
+        };
+        el.appendChild(chip);
+      });
+      if (!el.children.length) el.textContent = player===P1 ? '先手の持ち駒なし' : '後手の持ち駒なし';
+    }
+
+    function matchesSelection(m) {
+      if (!selected) return true;
+      if (selected.kind==='board') return !!m.from && m.from.r===selected.r && m.from.c===selected.c;
+      return !!m.drop && m.drop.player===selected.player && m.drop.idx===selected.idx;
+    }
+
+    function clickBoard(r,c,moves) {
+      if (gameOver) return;
+      const me = state.turn;
+      const on = state.board[r][c];
+      if (!selected) {
+        if (on && on.p===me) { selected={kind:'board',r,c}; render(); }
+        return;
+      }
+      const m = moves.find(x=>x.to.r===r&&x.to.c===c&&matchesSelection(x));
+      if (m) {
+        history.push(cloneState(state));
+        const temp = cloneState(state); temp.turn = state.turn;
+        state = doMove(temp,m).ns;
+        selected = null;
+        const winner = checkWinner();
+        if (winner) { gameOver = true; stateEl.textContent = winner; }
+        else stateEl.textContent = '';
+        render();
+        return;
+      }
+      if (on && on.p===me) selected={kind:'board',r,c}; else selected=null;
+      render();
+    }
+
+    function checkWinner() {
+      const lion1 = findLion(state,P1), lion2 = findLion(state,P2);
+      if (!lion1) return 'プレイヤー2の勝ち（ライオン捕獲）';
+      if (!lion2) return 'プレイヤー1の勝ち（ライオン捕獲）';
+      if (isTryWin(state,P1)) return 'プレイヤー1の勝ち（トライ成立）';
+      if (isTryWin(state,P2)) return 'プレイヤー2の勝ち（トライ成立）';
+      const lm = legalMoves(state,state.turn);
+      if (!lm.length) return `プレイヤー${enemy(state.turn)}の勝ち（合法手なし）`;
+      return null;
+    }
+
+    document.getElementById('new').onclick = newGame;
+    document.getElementById('undo').onclick = () => {
+      if (history.length<=1) return;
+      history.pop();
+      state = cloneState(history[history.length-1]);
+      selected = null; gameOver = false; stateEl.textContent='';
+      render();
+    };
+    depthEl.onchange = () => !gameOver && render();
+    firstEl.onchange = newGame;
+
+    newGame();
+  </script>
+</body>
+</html>
